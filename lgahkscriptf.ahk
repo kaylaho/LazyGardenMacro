@@ -1,13 +1,13 @@
-﻿#Requires AutoHotkey v2.0
+#Requires AutoHotkey v2.0
 #SingleInstance Force
 Persistent
 
 ; -------------------------
 ; VERSION & UPDATE
 ; -------------------------
-global currentVersion  := "1.0"
-global versionURL      := "https://raw.githubusercontent.com/YOURUSERNAME/YOURREPO/main/version.txt"
-global scriptURL       := "https://raw.githubusercontent.com/YOURUSERNAME/YOURREPO/main/LazyGardenMacro.ahk"
+global currentVersion  := "1.1"
+global versionURL      := "https://raw.githubusercontent.com/kaylaho/LazyGardenMacro/main/version.txt"
+global scriptURL       := "https://raw.githubusercontent.com/kaylaho/LazyGardenMacro/main/LazyGardenMacro.ahk"
 
 ; -------------------------
 ; ICON
@@ -49,19 +49,19 @@ global settingsGui     := 0
 global mainGui         := 0
 global settingsFile    := A_ScriptDir "\lazy_garden_settings.ini"
 
-; Spam Preset 1 (primary)
-global holdKey         := "RButton"
-global spamKey         := "Right"
-global holdDuration    := 0
+; Spam Preset 1
+global holdKey         := "MButton"
+global spamKey         := "LButton"
+global holdDuration    := 1
 global preset1Active   := true
 
 ; Spam Preset 2
-global holdKey2        := "LButton"
-global spamKey2        := "Left"
-global holdDuration2   := 0
+global holdKey2        := "RButton"
+global spamKey2        := "RButton"
+global holdDuration2   := 1
 global preset2Active   := false
 
-; Preset switch keybind
+; Preset switch keybinds
 global presetSwitchKey := "F6"
 global preset2AddKey   := "F7"
 global bothActive      := false
@@ -74,26 +74,36 @@ global showHelpOnStart := true
 global restartKey      := "F8"
 
 ; Wiggle settings
-global wiggleHoldKey   := "XButton1"
+global wiggleHoldKey   := "Z"
 global wiggleKeyA      := "a"
 global wiggleKeyB      := "d"
 global wiggleHoldA     := 55
 global wiggleHoldB     := 55
-global wiggleDelay     := 9
+global wiggleDelay     := 10
 
-; Colors (hex strings without #)
+; Sequence macro settings
+global seqHoldKey      := "F5"
+global seqLoopCount    := 0
+global seqLoopDelay    := 500
+global seqStepCount    := 4
+global seqKeys         := ["w", "s", "a", "d", "", "", "", ""]
+global seqHolds        := [500, 500, 300, 300, 0, 0, 0, 0]
+global seqDelays       := [100, 100, 100, 100, 0, 0, 0, 0]
+global seqRunning      := false
+
+; Recorrection settings
+global recorStepCount  := 2
+global recorInterval   := 60
+global recorKeys       := ["w", "s", "", ""]
+global recorHolds      := [300, 300, 0, 0]
+global recorDelays     := [100, 100, 0, 0]
+global recorRunning    := false
+
+; Colors
 global colorMain       := "1a1a2e"
 global colorSettings   := "16213e"
 global colorHelp       := "1a1a2e"
 global colorText       := "e0e0e0"
-
-; -------------------------
-; APPLY COLOR TO A GUI
-; -------------------------
-ApplyGuiColor(guiObj, bgHex)
-{
-    guiObj.BackColor := bgHex
-}
 
 ; -------------------------
 ; LOAD / SAVE SETTINGS
@@ -107,6 +117,8 @@ LoadSettings()
     global soundVolume, showHelpOnStart, settingsFile
     global wiggleHoldKey, wiggleKeyA, wiggleKeyB, wiggleHoldA, wiggleHoldB, wiggleDelay
     global colorMain, colorSettings, colorHelp, colorText
+    global seqHoldKey, seqLoopCount, seqLoopDelay, seqStepCount, seqKeys, seqHolds, seqDelays
+    global recorInterval, recorStepCount, recorKeys, recorHolds, recorDelays
 
     if !FileExist(settingsFile)
         return
@@ -135,6 +147,26 @@ LoadSettings()
     colorSettings    := IniRead(settingsFile, "Colors", "Settings", colorSettings)
     colorHelp        := IniRead(settingsFile, "Colors", "Help",     colorHelp)
     colorText        := IniRead(settingsFile, "Colors", "Text",     colorText)
+    seqHoldKey       := IniRead(settingsFile, "Sequence", "HoldKey",    seqHoldKey)
+    seqLoopCount     := Integer(IniRead(settingsFile, "Sequence", "LoopCount",  seqLoopCount))
+    seqLoopDelay     := Integer(IniRead(settingsFile, "Sequence", "LoopDelay",  seqLoopDelay))
+    seqStepCount     := Integer(IniRead(settingsFile, "Sequence", "StepCount",  seqStepCount))
+    Loop 8
+    {
+        i := A_Index
+        seqKeys[i]   := IniRead(settingsFile, "Sequence", "Key"   . i, seqKeys[i])
+        seqHolds[i]  := Integer(IniRead(settingsFile, "Sequence", "Hold"  . i, seqHolds[i]))
+        seqDelays[i] := Integer(IniRead(settingsFile, "Sequence", "Delay" . i, seqDelays[i]))
+    }
+    recorInterval  := Integer(IniRead(settingsFile, "Recorrection", "Interval",  recorInterval))
+    recorStepCount := Integer(IniRead(settingsFile, "Recorrection", "StepCount", recorStepCount))
+    Loop 4
+    {
+        i := A_Index
+        recorKeys[i]   := IniRead(settingsFile, "Recorrection", "Key"   . i, recorKeys[i])
+        recorHolds[i]  := Integer(IniRead(settingsFile, "Recorrection", "Hold"  . i, recorHolds[i]))
+        recorDelays[i] := Integer(IniRead(settingsFile, "Recorrection", "Delay" . i, recorDelays[i]))
+    }
 }
 
 SaveSettings()
@@ -146,6 +178,8 @@ SaveSettings()
     global soundVolume, showHelpOnStart, settingsFile
     global wiggleHoldKey, wiggleKeyA, wiggleKeyB, wiggleHoldA, wiggleHoldB, wiggleDelay
     global colorMain, colorSettings, colorHelp, colorText
+    global seqHoldKey, seqLoopCount, seqLoopDelay, seqStepCount, seqKeys, seqHolds, seqDelays
+    global recorInterval, recorStepCount, recorKeys, recorHolds, recorDelays
 
     IniWrite holdKey,                       settingsFile, "Preset1", "HoldKey"
     IniWrite spamKey,                       settingsFile, "Preset1", "SpamKey"
@@ -171,6 +205,26 @@ SaveSettings()
     IniWrite colorSettings,                 settingsFile, "Colors",  "Settings"
     IniWrite colorHelp,                     settingsFile, "Colors",  "Help"
     IniWrite colorText,                     settingsFile, "Colors",  "Text"
+    IniWrite seqHoldKey,   settingsFile, "Sequence", "HoldKey"
+    IniWrite seqLoopCount, settingsFile, "Sequence", "LoopCount"
+    IniWrite seqLoopDelay, settingsFile, "Sequence", "LoopDelay"
+    IniWrite seqStepCount, settingsFile, "Sequence", "StepCount"
+    Loop 8
+    {
+        i := A_Index
+        IniWrite seqKeys[i],   settingsFile, "Sequence", "Key"   . i
+        IniWrite seqHolds[i],  settingsFile, "Sequence", "Hold"  . i
+        IniWrite seqDelays[i], settingsFile, "Sequence", "Delay" . i
+    }
+    IniWrite recorInterval,  settingsFile, "Recorrection", "Interval"
+    IniWrite recorStepCount, settingsFile, "Recorrection", "StepCount"
+    Loop 4
+    {
+        i := A_Index
+        IniWrite recorKeys[i],   settingsFile, "Recorrection", "Key"   . i
+        IniWrite recorHolds[i],  settingsFile, "Recorrection", "Hold"  . i
+        IniWrite recorDelays[i], settingsFile, "Recorrection", "Delay" . i
+    }
 }
 
 LoadSettings()
@@ -200,7 +254,7 @@ SetupTray()
 RegisterHotkeys()
 {
     global holdKey, holdKey2, speedKey, speedKey2
-    global wiggleHoldKey, restartKey, presetSwitchKey, preset2AddKey
+    global wiggleHoldKey, restartKey, presetSwitchKey, preset2AddKey, seqHoldKey
 
     try
         HotKey "*" . holdKey, SpamLoop1
@@ -208,67 +262,21 @@ RegisterHotkeys()
         MsgBox "Could not register Preset 1 Hold Key: [" . holdKey . "]"
 
     if (holdKey2 != "" && holdKey2 != holdKey)
-    {
-        try
-            HotKey "*" . holdKey2, SpamLoop2
-        catch as err
-        {
-        }
-    }
-
+        try HotKey "*" . holdKey2, SpamLoop2
     if (speedKey != "")
-    {
-        try
-            HotKey "*" . speedKey, ChangeSpeed
-        catch as err
-        {
-        }
-    }
-
+        try HotKey "*" . speedKey, ChangeSpeed
     if (speedKey2 != "" && speedKey2 != speedKey)
-    {
-        try
-            HotKey "*" . speedKey2, ChangeSpeed
-        catch as err
-        {
-        }
-    }
-
+        try HotKey "*" . speedKey2, ChangeSpeed
     if (wiggleHoldKey != "" && wiggleHoldKey != holdKey && wiggleHoldKey != holdKey2)
-    {
-        try
-            HotKey "*" . wiggleHoldKey, WiggleLoop
-        catch as err
-        {
-        }
-    }
-
+        try HotKey "*" . wiggleHoldKey, WiggleLoop
     if (restartKey != "")
-    {
-        try
-            HotKey restartKey, DoRestart
-        catch as err
-        {
-        }
-    }
-
+        try HotKey restartKey, DoRestart
     if (presetSwitchKey != "")
-    {
-        try
-            HotKey presetSwitchKey, SwitchPreset
-        catch as err
-        {
-        }
-    }
-
+        try HotKey presetSwitchKey, SwitchPreset
     if (preset2AddKey != "" && preset2AddKey != presetSwitchKey)
-    {
-        try
-            HotKey preset2AddKey, ToggleBothPresets
-        catch as err
-        {
-        }
-    }
+        try HotKey preset2AddKey, ToggleBothPresets
+    if (seqHoldKey != "")
+        try HotKey seqHoldKey, SequenceLoop
 
     UpdatePresetHotkeyStates()
 }
@@ -276,174 +284,61 @@ RegisterHotkeys()
 UnregisterHotkeys()
 {
     global holdKey, holdKey2, speedKey, speedKey2
-    global wiggleHoldKey, restartKey, presetSwitchKey, preset2AddKey
+    global wiggleHoldKey, restartKey, presetSwitchKey, preset2AddKey, seqHoldKey
 
-    try
-        HotKey "*" . holdKey, SpamLoop1, "Off"
-    catch as err
-    {
-    }
-
+    try HotKey "*" . holdKey, SpamLoop1, "Off"
     if (holdKey2 != "" && holdKey2 != holdKey)
-    {
-        try
-            HotKey "*" . holdKey2, SpamLoop2, "Off"
-        catch as err
-        {
-        }
-    }
-
+        try HotKey "*" . holdKey2, SpamLoop2, "Off"
     if (speedKey != "")
-    {
-        try
-            HotKey "*" . speedKey, ChangeSpeed, "Off"
-        catch as err
-        {
-        }
-    }
-
+        try HotKey "*" . speedKey, ChangeSpeed, "Off"
     if (speedKey2 != "" && speedKey2 != speedKey)
-    {
-        try
-            HotKey "*" . speedKey2, ChangeSpeed, "Off"
-        catch as err
-        {
-        }
-    }
-
+        try HotKey "*" . speedKey2, ChangeSpeed, "Off"
     if (wiggleHoldKey != "")
-    {
-        try
-            HotKey "*" . wiggleHoldKey, WiggleLoop, "Off"
-        catch as err
-        {
-        }
-    }
-
+        try HotKey "*" . wiggleHoldKey, WiggleLoop, "Off"
     if (restartKey != "")
-    {
-        try
-            HotKey restartKey, DoRestart, "Off"
-        catch as err
-        {
-        }
-    }
-
+        try HotKey restartKey, DoRestart, "Off"
     if (presetSwitchKey != "")
-    {
-        try
-            HotKey presetSwitchKey, SwitchPreset, "Off"
-        catch as err
-        {
-        }
-    }
-
+        try HotKey presetSwitchKey, SwitchPreset, "Off"
     if (preset2AddKey != "" && preset2AddKey != presetSwitchKey)
-    {
-        try
-            HotKey preset2AddKey, ToggleBothPresets, "Off"
-        catch as err
-        {
-        }
-    }
+        try HotKey preset2AddKey, ToggleBothPresets, "Off"
+    if (seqHoldKey != "")
+        try HotKey seqHoldKey, SequenceLoop, "Off"
 }
 
 ReenableHotkeys()
 {
     global holdKey, holdKey2, speedKey, speedKey2
-    global wiggleHoldKey, restartKey, presetSwitchKey, preset2AddKey
+    global wiggleHoldKey, restartKey, presetSwitchKey, preset2AddKey, seqHoldKey
 
-    try
-        HotKey "*" . holdKey, SpamLoop1, "On"
-    catch as err
-    {
-    }
-
+    try HotKey "*" . holdKey, SpamLoop1, "On"
     if (holdKey2 != "" && holdKey2 != holdKey)
-    {
-        try
-            HotKey "*" . holdKey2, SpamLoop2, "On"
-        catch as err
-        {
-        }
-    }
-
+        try HotKey "*" . holdKey2, SpamLoop2, "On"
     if (speedKey != "")
-    {
-        try
-            HotKey "*" . speedKey, ChangeSpeed, "On"
-        catch as err
-        {
-        }
-    }
-
+        try HotKey "*" . speedKey, ChangeSpeed, "On"
     if (speedKey2 != "" && speedKey2 != speedKey)
-    {
-        try
-            HotKey "*" . speedKey2, ChangeSpeed, "On"
-        catch as err
-        {
-        }
-    }
-
+        try HotKey "*" . speedKey2, ChangeSpeed, "On"
     if (wiggleHoldKey != "")
-    {
-        try
-            HotKey "*" . wiggleHoldKey, WiggleLoop, "On"
-        catch as err
-        {
-        }
-    }
-
+        try HotKey "*" . wiggleHoldKey, WiggleLoop, "On"
     if (restartKey != "")
-    {
-        try
-            HotKey restartKey, DoRestart, "On"
-        catch as err
-        {
-        }
-    }
-
+        try HotKey restartKey, DoRestart, "On"
     if (presetSwitchKey != "")
-    {
-        try
-            HotKey presetSwitchKey, SwitchPreset, "On"
-        catch as err
-        {
-        }
-    }
-
+        try HotKey presetSwitchKey, SwitchPreset, "On"
     if (preset2AddKey != "" && preset2AddKey != presetSwitchKey)
-    {
-        try
-            HotKey preset2AddKey, ToggleBothPresets, "On"
-        catch as err
-        {
-        }
-    }
-
+        try HotKey preset2AddKey, ToggleBothPresets, "On"
+    if (seqHoldKey != "")
+        try HotKey seqHoldKey, SequenceLoop, "On"
     UpdatePresetHotkeyStates()
 }
 
 UpdatePresetHotkeyStates()
 {
     global holdKey, holdKey2, preset1Active, preset2Active, bothActive
-
     state1 := (preset1Active || bothActive) ? "On" : "Off"
-    try
-        HotKey "*" . holdKey, SpamLoop1, state1
-    catch as err
-    {
-    }
-
+    try HotKey "*" . holdKey, SpamLoop1, state1
     if (holdKey2 != "" && holdKey2 != holdKey)
     {
         state2 := (preset2Active || bothActive) ? "On" : "Off"
-        try
-            HotKey "*" . holdKey2, SpamLoop2, state2
-        catch as err
-        {
-        }
+        try HotKey "*" . holdKey2, SpamLoop2, state2
     }
 }
 
@@ -497,7 +392,6 @@ ToggleBothPresets(*)
 SpamLoop1(thisKey)
 {
     global sleepValues, sleepIndex, holdKey, spamKey, holdDuration
-
     while GetKeyState(holdKey, "P")
     {
         if RegExMatch(spamKey, "i)^(Left|Right|Middle)$")
@@ -527,7 +421,6 @@ SpamLoop1(thisKey)
 SpamLoop2(thisKey)
 {
     global sleepValues, sleepIndex, holdKey2, spamKey2, holdDuration2
-
     while GetKeyState(holdKey2, "P")
     {
         if RegExMatch(spamKey2, "i)^(Left|Right|Middle)$")
@@ -555,22 +448,140 @@ SpamLoop2(thisKey)
 }
 
 ; -------------------------
+; RECORRECTION RUNNER
+; -------------------------
+RunRecorrection()
+{
+    global recorStepCount, recorKeys, recorHolds, recorDelays, seqRunning
+    ShowMessage("↺ Recorrection running...")
+    i := 1
+    while (i <= recorStepCount && seqRunning)
+    {
+        k := recorKeys[i]
+        h := recorHolds[i]
+        d := recorDelays[i]
+        if (k != "")
+        {
+            if RegExMatch(k, "i)^(Left|Right|Middle)$")
+            {
+                Click k . " Down"
+                Sleep h
+                Click k . " Up"
+            }
+            else
+            {
+                Send "{" . k . " Down}"
+                Sleep h
+                Send "{" . k . " Up}"
+            }
+            if (d > 0)
+                Sleep d
+        }
+        i++
+    }
+    ShowMessage("↺ Recorrection done — resuming ▶")
+}
+
+; -------------------------
+; SEQUENCE MACRO LOOP
+; -------------------------
+SequenceLoop(thisKey)
+{
+    global seqHoldKey, seqLoopCount, seqLoopDelay, seqStepCount
+    global seqKeys, seqHolds, seqDelays, seqRunning
+    global recorInterval, recorRunning
+
+    if seqRunning
+    {
+        seqRunning := false
+        ShowMessage("Sequence stopped ✖")
+        return
+    }
+    seqRunning   := true
+    recorRunning := false
+    ShowMessage("Sequence started ▶")
+
+    loopsDone     := 0
+    lastRecorTime := A_TickCount
+
+    while (seqRunning && (seqLoopCount = 0 || loopsDone < seqLoopCount))
+    {
+        if (recorInterval > 0 && (A_TickCount - lastRecorTime) / 1000 >= recorInterval)
+        {
+            recorRunning  := true
+            RunRecorrection()
+            recorRunning  := false
+            lastRecorTime := A_TickCount
+            if !seqRunning
+                break
+        }
+
+        i := 1
+        while (i <= seqStepCount && seqRunning)
+        {
+            if (recorInterval > 0 && (A_TickCount - lastRecorTime) / 1000 >= recorInterval)
+            {
+                recorRunning  := true
+                RunRecorrection()
+                recorRunning  := false
+                lastRecorTime := A_TickCount
+                if !seqRunning
+                    break
+            }
+
+            k := seqKeys[i]
+            h := seqHolds[i]
+            d := seqDelays[i]
+            if (k != "")
+            {
+                if RegExMatch(k, "i)^(Left|Right|Middle)$")
+                {
+                    Click k . " Down"
+                    Sleep h
+                    Click k . " Up"
+                }
+                else
+                {
+                    Send "{" . k . " Down}"
+                    Sleep h
+                    Send "{" . k . " Up}"
+                }
+                if (d > 0)
+                    Sleep d
+            }
+            i++
+        }
+
+        loopsDone++
+        if (seqRunning && (seqLoopCount = 0 || loopsDone < seqLoopCount))
+            Sleep seqLoopDelay
+    }
+
+    seqRunning := false
+    ShowMessage("Sequence finished ✔")
+}
+
+StopSequence()
+{
+    global seqRunning
+    seqRunning := false
+    ShowMessage("Sequence stopped ✖")
+}
+
+; -------------------------
 ; WIGGLE LOOP
 ; -------------------------
 WiggleLoop(thisKey)
 {
     global wiggleHoldKey, wiggleKeyA, wiggleKeyB, wiggleHoldA, wiggleHoldB, wiggleDelay
-
     while GetKeyState(wiggleHoldKey, "P")
     {
         Send "{" . wiggleKeyA . " Down}"
         Sleep wiggleHoldA
         Send "{" . wiggleKeyA . " Up}"
         Sleep wiggleDelay
-
         if !GetKeyState(wiggleHoldKey, "P")
             break
-
         Send "{" . wiggleKeyB . " Down}"
         Sleep wiggleHoldB
         Send "{" . wiggleKeyB . " Up}"
@@ -610,9 +621,9 @@ PlaySound(filePath)
 ; -------------------------
 ; MAIN WINDOW
 ; -------------------------
-global statusLabel  := 0
-global delayLabel   := 0
-global presetLabel  := 0
+global statusLabel := 0
+global delayLabel  := 0
+global presetLabel := 0
 
 MainWindowClose(*)
 {
@@ -662,7 +673,6 @@ BuildMainWindow()
     mainGui.Add("Text", "w240 y+2 cWhite", "Wiggle: [" . wiggleHoldKey . "] → " . wiggleKeyA . " ↔ " . wiggleKeyB)
 
     presetLabel := mainGui.Add("Text", "w240 y+4 cWhite", "Active: Preset 1")
-
     mainGui.Add("Text", "w240 y+6 h1 0x10 cWhite", "")
 
     btnPause    := mainGui.Add("Button", "w114 y+8",  "⏸ Pause  [F2]")
@@ -736,13 +746,18 @@ GetHelpText()
     global holdKey, spamKey, holdKey2, spamKey2
     global speedKey, speedKey2, sleepValues, sleepIndex
     global wiggleHoldKey, wiggleKeyA, wiggleKeyB, restartKey
-    global presetSwitchKey, preset2AddKey
-    spd1  := (speedKey       != "") ? speedKey       : "(none)"
-    spd2  := (speedKey2      != "") ? speedKey2      : "(none)"
-    wHold := (wiggleHoldKey  != "") ? wiggleHoldKey  : "(none)"
-    rKey  := (restartKey     != "") ? restartKey     : "(none)"
+    global presetSwitchKey, preset2AddKey, recorInterval
+
+    spd1  := (speedKey        != "") ? speedKey        : "(none)"
+    spd2  := (speedKey2       != "") ? speedKey2       : "(none)"
+    wHold := (wiggleHoldKey   != "") ? wiggleHoldKey   : "(none)"
+    rKey  := (restartKey      != "") ? restartKey      : "(none)"
     swKey := (presetSwitchKey != "") ? presetSwitchKey : "(none)"
-    btKey := (preset2AddKey  != "") ? preset2AddKey  : "(none)"
+    btKey := (preset2AddKey   != "") ? preset2AddKey   : "(none)"
+    recorNote := (recorInterval > 0)
+        ? "Recorrection fires every " . recorInterval . "s during sequence."
+        : "Recorrection is disabled (interval = 0)."
+
     return (
         "⁺‧₊˚ ཐི⋆ HOW TO USE LAZY GARDEN MACRO ⋆ཋྀ ˚₊‧⁺`n`n"
         . "— SPAM PRESET 1 —`n"
@@ -758,7 +773,10 @@ GetHelpText()
         . "F2  → Pause / Unpause`n"
         . "F3  → Exit macro (press twice)`n"
         . rKey . "  → Save & Restart`n"
-        . "F9  → Settings & Keybinds`n"
+        . "F9  → Settings & Keybinds`n`n"
+        . "— RECORRECTION —`n"
+        . recorNote . "`n"
+        . "Configure in Settings → Sequence tab."
     )
 }
 
@@ -789,6 +807,10 @@ global sVolSlider, sVolLabel, sHelpCheck
 global sWiggleHoldEdit, sWiggleKeyAEdit, sWiggleKeyBEdit
 global sWiggleHoldAEdit, sWiggleHoldBEdit, sWiggleDelayEdit
 global sColorMainEdit, sColorSettingsEdit, sColorHelpEdit
+global sSeqHoldEdit, sSeqLoopEdit, sSeqLoopDelayEdit, sSeqStepCountEdit
+global sSeqKeyEdits, sSeqHoldEdits, sSeqDelayEdits
+global sRecorIntervalEdit, sRecorStepCountEdit
+global sRecorKeyEdits, sRecorHoldEdits, sRecorDelayEdits
 
 BuildSettingsGui()
 {
@@ -798,6 +820,8 @@ BuildSettingsGui()
     global speedKey, speedKey2, restartKey, soundVolume, showHelpOnStart
     global wiggleHoldKey, wiggleKeyA, wiggleKeyB, wiggleHoldA, wiggleHoldB, wiggleDelay
     global colorMain, colorSettings, colorHelp
+    global seqHoldKey, seqLoopCount, seqLoopDelay, seqStepCount, seqKeys, seqHolds, seqDelays
+    global recorInterval, recorStepCount, recorKeys, recorHolds, recorDelays
     global settingsGui, settingsVisible
     global sHoldEdit, sSpamEdit, sHoldDurEdit
     global sHoldEdit2, sSpamEdit2, sHoldDurEdit2
@@ -807,112 +831,185 @@ BuildSettingsGui()
     global sWiggleHoldEdit, sWiggleKeyAEdit, sWiggleKeyBEdit
     global sWiggleHoldAEdit, sWiggleHoldBEdit, sWiggleDelayEdit
     global sColorMainEdit, sColorSettingsEdit, sColorHelpEdit
+    global sSeqHoldEdit, sSeqLoopEdit, sSeqLoopDelayEdit, sSeqStepCountEdit
+    global sSeqKeyEdits, sSeqHoldEdits, sSeqDelayEdits
+    global sRecorIntervalEdit, sRecorStepCountEdit
+    global sRecorKeyEdits, sRecorHoldEdits, sRecorDelayEdits
 
-    ; Get screen height so we can cap the settings window
-    screenH := SysGet(1)   ; SM_CYSCREEN
-    maxH    := screenH - 80
-
-    settingsGui := Gui("+AlwaysOnTop", "Lazy Garden — Settings & Keybinds")
+    settingsGui := Gui("+AlwaysOnTop", "Lazy Garden — Settings Menu")
     settingsGui.SetFont("s9")
     settingsGui.BackColor := colorSettings
     settingsGui.OnEvent("Close", (*) => (settingsGui.Hide(), settingsVisible := false))
 
-    w := 420   ; content width
+    ; Tab control — x10 y10, wide and tall enough for all content
+    tabs := settingsGui.Add("Tab3", "x10 y10 w460 h785",
+        ["Presets && Spammy", "Wiggle", "Sequence [ALPHA]", "Sound && Colors"])
 
-    settingsGui.Add("Text", "w" w " Center cWhite", "⁺‧₊˚ SETTINGS & KEYBINDS ˚₊‧⁺")
-    settingsGui.Add("Text", "w" w " cWhite", "")
+    ; ==============================================================
+    ; TAB 1 — PRESETS & KEYS
+    ; First control MUST use absolute x,y inside the tab body.
+    ; Tab3 body starts at roughly y=38 (tab strip height ~28px).
+    ; We offset from the Tab3's own y=10, so body top = ~10+28 = 38.
+    ; Use x=20, y=48 as the safe first anchor.
+    ; ==============================================================
+    tabs.UseTab(1)
 
-    ; ---- PRESET 1 ----
-    settingsGui.Add("Text", "w" w " Center cWhite", "— SPAM PRESET 1 —")
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Hold Key:")
-    sHoldEdit := settingsGui.Add("Edit", "w" w, holdKey)
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Spam Key:")
-    sSpamEdit := settingsGui.Add("Edit", "w" w, spamKey)
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Hold Duration (ms):")
-    sHoldDurEdit := settingsGui.Add("Edit", "w80", holdDuration)
+    settingsGui.Add("Text",  "x20 y48 w200 Center cWhite",  "— SPAM PRESET 1 —")
+    settingsGui.Add("Text",  "x20 y+8 w200 cWhite",         "Hold Key:")
+    sHoldEdit     := settingsGui.Add("Edit", "x20 y+2 w200", holdKey)
+    settingsGui.Add("Text",  "x20 y+6 w200 cWhite",         "Spam Key:")
+    sSpamEdit     := settingsGui.Add("Edit", "x20 y+2 w200", spamKey)
+    settingsGui.Add("Text",  "x20 y+6 w200 cWhite",         "Hold Duration (ms):")
+    sHoldDurEdit  := settingsGui.Add("Edit", "x20 y+2 w80",  holdDuration)
 
-    ; ---- PRESET 2 ----
-    settingsGui.Add("Text", "w" w " y+10 Center cWhite", "— SPAM PRESET 2 —")
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Hold Key:")
-    sHoldEdit2 := settingsGui.Add("Edit", "w" w, holdKey2)
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Spam Key:")
-    sSpamEdit2 := settingsGui.Add("Edit", "w" w, spamKey2)
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Hold Duration (ms):")
-    sHoldDurEdit2 := settingsGui.Add("Edit", "w80", holdDuration2)
+    settingsGui.Add("Text",  "x20 y+14 w200 Center cWhite", "— SPAM PRESET 2 —")
+    settingsGui.Add("Text",  "x20 y+8 w200 cWhite",         "Hold Key:")
+    sHoldEdit2    := settingsGui.Add("Edit", "x20 y+2 w200", holdKey2)
+    settingsGui.Add("Text",  "x20 y+6 w200 cWhite",         "Spam Key:")
+    sSpamEdit2    := settingsGui.Add("Edit", "x20 y+2 w200", spamKey2)
+    settingsGui.Add("Text",  "x20 y+6 w200 cWhite",         "Hold Duration (ms):")
+    sHoldDurEdit2 := settingsGui.Add("Edit", "x20 y+2 w80",  holdDuration2)
 
-    ; ---- PRESET KEYS ----
-    settingsGui.Add("Text", "w" w " y+10 Center cWhite", "— PRESET KEYBINDS —")
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Switch Preset Key:")
-    sPresetSwitchEdit := settingsGui.Add("Edit", "w" w, presetSwitchKey)
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Both Active Key:")
-    sPreset2AddEdit := settingsGui.Add("Edit", "w" w, preset2AddKey)
+    settingsGui.Add("Text",  "x20 y+14 w200 Center cWhite", "— PRESET SWITCH KEYS —")
+    settingsGui.Add("Text",  "x20 y+8 w200 cWhite",         "Switch Preset Key:")
+    sPresetSwitchEdit := settingsGui.Add("Edit", "x20 y+2 w200", presetSwitchKey)
+    settingsGui.Add("Text",  "x20 y+6 w200 cWhite",         "Both Active Key:")
+    sPreset2AddEdit   := settingsGui.Add("Edit", "x20 y+2 w200", preset2AddKey)
 
-    ; ---- OTHER KEYS ----
-    settingsGui.Add("Text", "w" w " y+10 Center cWhite", "— OTHER KEYS —")
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Speed Cycle Key 1:  (blank = disabled)")
-    sSpeed1Edit := settingsGui.Add("Edit", "w" w, speedKey)
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Speed Cycle Key 2:  (blank = disabled)")
-    sSpeed2Edit := settingsGui.Add("Edit", "w" w, speedKey2)
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Save & Restart Key:  (blank = disabled)")
-    sRestartEdit := settingsGui.Add("Edit", "w" w, restartKey)
+    settingsGui.Add("Text",  "x20 y+14 w200 Center cWhite", "— OTHER KEYS —")
+    settingsGui.Add("Text",  "x20 y+8 w200 cWhite",         "Speed Key 1:  (blank = off)")
+    sSpeed1Edit  := settingsGui.Add("Edit", "x20 y+2 w200",  speedKey)
+    settingsGui.Add("Text",  "x20 y+6 w200 cWhite",         "Speed Key 2:  (blank = off)")
+    sSpeed2Edit  := settingsGui.Add("Edit", "x20 y+2 w200",  speedKey2)
+    settingsGui.Add("Text",  "x20 y+6 w200 cWhite",         "Save && Restart Key:")
+    sRestartEdit := settingsGui.Add("Edit", "x20 y+2 w200",  restartKey)
 
-    ; ---- WIGGLE ----
-    settingsGui.Add("Text", "w" w " y+10 Center cWhite", "— WIGGLE —")
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Wiggle Hold Key:")
-    sWiggleHoldEdit := settingsGui.Add("Edit", "w" w, wiggleHoldKey)
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Key A  /  Key B:")
-    sWiggleKeyAEdit := settingsGui.Add("Edit", "w80", wiggleKeyA)
-    sWiggleKeyBEdit := settingsGui.Add("Edit", "x+8 w80", wiggleKeyB)
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Key A Hold (ms)  /  Key B Hold (ms):")
-    sWiggleHoldAEdit := settingsGui.Add("Edit", "w80", wiggleHoldA)
-    sWiggleHoldBEdit := settingsGui.Add("Edit", "x+8 w80", wiggleHoldB)
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Delay Between Presses (ms):")
-    sWiggleDelayEdit := settingsGui.Add("Edit", "w80", wiggleDelay)
+    ; ==============================================================
+    ; TAB 2 — WIGGLE
+    ; ==============================================================
+    tabs.UseTab(2)
 
-    ; ---- SOUND & MISC ----
-    settingsGui.Add("Text", "w" w " y+10 Center cWhite", "— SOUND & MISC —")
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Sound Volume:  (0 = mute, 100 = full)")
-    sVolLabel  := settingsGui.Add("Text", "w40 cWhite", soundVolume . "%")
-    sVolSlider := settingsGui.Add("Slider", "x+8 w" (w-50) " Range0-100 TickInterval10 AltSubmit", soundVolume)
+    settingsGui.Add("Text",  "x20 y48 w220 Center cWhite",  "— WIGGLE SETTINGS —")
+    settingsGui.Add("Text",  "x20 y+10 w220 cWhite",        "Wiggle Hold Key:")
+    sWiggleHoldEdit  := settingsGui.Add("Edit", "x20 y+2 w200", wiggleHoldKey)
+    settingsGui.Add("Text",  "x20 y+10 w100 cWhite",        "Key A:")
+    sWiggleKeyAEdit  := settingsGui.Add("Edit", "x20 y+2 w80",  wiggleKeyA)
+    settingsGui.Add("Text",  "x20 y+8 w100 cWhite",         "Key B:")
+    sWiggleKeyBEdit  := settingsGui.Add("Edit", "x20 y+2 w80",  wiggleKeyB)
+    settingsGui.Add("Text",  "x20 y+10 w220 cWhite",        "Key A Hold Duration (ms):")
+    sWiggleHoldAEdit := settingsGui.Add("Edit", "x20 y+2 w80",  wiggleHoldA)
+    settingsGui.Add("Text",  "x20 y+8 w220 cWhite",         "Key B Hold Duration (ms):")
+    sWiggleHoldBEdit := settingsGui.Add("Edit", "x20 y+2 w80",  wiggleHoldB)
+    settingsGui.Add("Text",  "x20 y+10 w220 cWhite",        "Delay Between Keys (ms):")
+    sWiggleDelayEdit := settingsGui.Add("Edit", "x20 y+2 w80",  wiggleDelay)
+    settingsGui.Add("Text",  "x20 y+20 w400 cWhite",
+        "TIP: Wiggle alternates Key A → Key B while you hold the Wiggle Hold Key.`n"
+        . "Tune hold durations and delay to control speed and distance.")
+
+    ; ==============================================================
+    ; TAB 3 — SEQUENCE
+    ; ==============================================================
+    tabs.UseTab(3)
+
+    settingsGui.Add("Text",  "x20 y48 w420 Center cWhite",  "— SEQUENCE MACRO [IN ALPHA] —")
+    settingsGui.Add("Text",  "x20 y+8 w420 cWhite",         "Activate Key  (press once to start, again to stop):")
+    sSeqHoldEdit      := settingsGui.Add("Edit", "x20 y+2 w120", seqHoldKey)
+    settingsGui.Add("Text",  "x20 y+8 w200 cWhite",         "Loop Count  (0 = infinite):")
+    sSeqLoopEdit      := settingsGui.Add("Edit", "x20 y+2 w80",  seqLoopCount)
+    settingsGui.Add("Text",  "x20 y+6 w200 cWhite",         "Delay Between Loops (ms):")
+    sSeqLoopDelayEdit := settingsGui.Add("Edit", "x20 y+2 w80",  seqLoopDelay)
+    settingsGui.Add("Text",  "x20 y+6 w200 cWhite",         "Number of Active Steps  (1–8):")
+    sSeqStepCountEdit := settingsGui.Add("Edit", "x20 y+2 w80",  seqStepCount)
+
+    ; Column header row — pin columns with absolute x
+    settingsGui.Add("Text",  "x20 y+10 w30 cWhite",  "#")
+    settingsGui.Add("Text",  "x54 yp   w100 cWhite", "Key")
+    settingsGui.Add("Text",  "x158 yp  w80 cWhite",  "Hold ms")
+    settingsGui.Add("Text",  "x242 yp  w80 cWhite",  "Delay ms")
+
+    sSeqKeyEdits   := []
+    sSeqHoldEdits  := []
+    sSeqDelayEdits := []
+
+    Loop 8
+    {
+        i := A_Index
+        settingsGui.Add("Text",  "x20  y+5 w30 cWhite", i . ".")
+        eKey   := settingsGui.Add("Edit", "x54  yp w100", seqKeys[i])
+        eHold  := settingsGui.Add("Edit", "x158 yp w80",  seqHolds[i])
+        eDelay := settingsGui.Add("Edit", "x242 yp w80",  seqDelays[i])
+        sSeqKeyEdits.Push(eKey)
+        sSeqHoldEdits.Push(eHold)
+        sSeqDelayEdits.Push(eDelay)
+    }
+
+    ; ---- Recorrection ----
+    settingsGui.Add("Text",  "x20 y+14 w420 Center cWhite", "— RECORRECTION —")
+    settingsGui.Add("Text",  "x20 y+6 w420 cWhite",
+        "Interrupts the sequence every N seconds, runs its own steps, then resumes.")
+    settingsGui.Add("Text",  "x20 y+8 w240 cWhite",         "Interval in seconds  (0 = disabled):")
+    sRecorIntervalEdit  := settingsGui.Add("Edit", "x20 y+2 w80",  recorInterval)
+    settingsGui.Add("Text",  "x20 y+6 w240 cWhite",         "Number of Active Steps  (1–4):")
+    sRecorStepCountEdit := settingsGui.Add("Edit", "x20 y+2 w80",  recorStepCount)
+
+    settingsGui.Add("Text",  "x20 y+10 w30 cWhite",  "#")
+    settingsGui.Add("Text",  "x54 yp   w100 cWhite", "Key")
+    settingsGui.Add("Text",  "x158 yp  w80 cWhite",  "Hold ms")
+    settingsGui.Add("Text",  "x242 yp  w80 cWhite",  "Delay ms")
+
+    sRecorKeyEdits   := []
+    sRecorHoldEdits  := []
+    sRecorDelayEdits := []
+
+    Loop 4
+    {
+        i := A_Index
+        settingsGui.Add("Text",  "x20  y+5 w30 cWhite", i . ".")
+        rKey   := settingsGui.Add("Edit", "x54  yp w100", recorKeys[i])
+        rHold  := settingsGui.Add("Edit", "x158 yp w80",  recorHolds[i])
+        rDelay := settingsGui.Add("Edit", "x242 yp w80",  recorDelays[i])
+        sRecorKeyEdits.Push(rKey)
+        sRecorHoldEdits.Push(rHold)
+        sRecorDelayEdits.Push(rDelay)
+    }
+
+    ; ==============================================================
+    ; TAB 4 — SOUND & COLORS
+    ; ==============================================================
+    tabs.UseTab(4)
+
+    settingsGui.Add("Text",  "x20 y48 w240 Center cWhite",  "— SOUND —")
+    settingsGui.Add("Text",  "x20 y+10 w40 cWhite",         "Volume:")
+    sVolLabel  := settingsGui.Add("Text",   "x64 yp w36 cWhite", soundVolume . "%")
+    sVolSlider := settingsGui.Add("Slider", "x104 yp w160 Range0-100 TickInterval10 AltSubmit", soundVolume)
     sVolSlider.OnEvent("Change", OnVolSliderChange)
-    settingsGui.Add("Text", "w" w " y+6", "")
-    sHelpCheck := settingsGui.Add("Checkbox", "w" w " cWhite" . (showHelpOnStart ? " Checked" : ""), "Show help guide on startup")
 
-    ; ---- COLORS ----
-    settingsGui.Add("Text", "w" w " y+10 Center cWhite", "— BACKGROUND COLORS (hex, no #) —")
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Main window color:")
-    sColorMainEdit := settingsGui.Add("Edit", "w120", colorMain)
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Settings window color:")
-    sColorSettingsEdit := settingsGui.Add("Edit", "w120", colorSettings)
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "Help window color:")
-    sColorHelpEdit := settingsGui.Add("Edit", "w120", colorHelp)
-    settingsGui.Add("Text", "w" w " y+4 cWhite", "  Examples: ff0000 = red   1a1a2e = dark navy   ffffff = white")
+    sHelpCheck := settingsGui.Add("Checkbox", "x20 y+12 w240 cWhite" . (showHelpOnStart ? " Checked" : ""),
+        "Show help on startup")
+    settingsGui.Add("Button", "x20 y+10 w120", "▶ Test Sound").OnEvent("Click",
+        (*) => PlaySound(A_ScriptDir "\pop.wav"))
 
-    ; ---- BUTTONS ----
-    settingsGui.Add("Text", "w" w " y+10", "")
-    btnTest   := settingsGui.Add("Button", "w110", "▶ Test Sound")
-    btnSave   := settingsGui.Add("Button", "x+8 w150", "✔ Save && Restart")
-    btnCancel := settingsGui.Add("Button", "x+8 w110", "✘ Cancel")
+    settingsGui.Add("Text",  "x20 y+20 w240 Center cWhite", "— COLORS (hex, no #) —")
+    settingsGui.Add("Text",  "x20 y+10 w240 cWhite",        "Main window background:")
+    sColorMainEdit     := settingsGui.Add("Edit", "x20 y+2 w200", colorMain)
+    settingsGui.Add("Text",  "x20 y+8 w240 cWhite",         "Settings window background:")
+    sColorSettingsEdit := settingsGui.Add("Edit", "x20 y+2 w200", colorSettings)
+    settingsGui.Add("Text",  "x20 y+8 w240 cWhite",         "Help window background:")
+    sColorHelpEdit     := settingsGui.Add("Edit", "x20 y+2 w200", colorHelp)
+    settingsGui.Add("Text",  "x20 y+14 w380 cWhite",
+        "TIP: Any 6-digit hex color, e.g. 1a1a2e (dark navy) or ff69b4 (pink).`nChanges apply after Save && Restart.")
 
-    btnTest.OnEvent("Click",   (*) => PlaySound(A_ScriptDir "\pop.wav"))
+    ; ==============================================================
+    ; SAVE / CANCEL — outside all tabs
+    ; ==============================================================
+    tabs.UseTab(0)
+
+    btnSave   := settingsGui.Add("Button", "x10 y800 w150", "✔ Save && Restart")
+    btnCancel := settingsGui.Add("Button", "x168 y800 w110", "✘ Cancel")
     btnCancel.OnEvent("Click", (*) => (settingsGui.Hide(), settingsVisible := false))
-    btnSave.OnEvent("Click",   (*) => ApplySettings(
-        sHoldEdit.Value,         sSpamEdit.Value,         sHoldDurEdit.Value,
-        sHoldEdit2.Value,        sSpamEdit2.Value,        sHoldDurEdit2.Value,
-        sPresetSwitchEdit.Value, sPreset2AddEdit.Value,
-        sSpeed1Edit.Value,       sSpeed2Edit.Value,       sRestartEdit.Value,
-        sVolSlider.Value,        sHelpCheck.Value,
-        sWiggleHoldEdit.Value,   sWiggleKeyAEdit.Value,   sWiggleKeyBEdit.Value,
-        sWiggleHoldAEdit.Value,  sWiggleHoldBEdit.Value,  sWiggleDelayEdit.Value,
-        sColorMainEdit.Value,    sColorSettingsEdit.Value, sColorHelpEdit.Value
-    ))
+    btnSave.OnEvent("Click",   (*) => ApplySettingsFull())
 
-    ; Show and then resize height if taller than screen
-    settingsGui.Show("AutoSize")
-    settingsGui.GetPos(,, &sW, &sH)
-    if (sH > maxH)
-        settingsGui.Move(,, sW, maxH)
-    settingsGui.Hide()
+    settingsGui.Show("Hide")
 }
 
 OnVolSliderChange(*)
@@ -936,12 +1033,7 @@ OpenSettings()
     }
 }
 
-ApplySettings(nHold, nSpam, nHoldDur, nHold2, nSpam2, nHoldDur2,
-              nSwitchKey, nBothKey,
-              nSpeed1, nSpeed2, nRestartKey,
-              nVolume, nHelpOnStart,
-              nWiggleHold, nWigKeyA, nWigKeyB, nWigHoldA, nWigHoldB, nWigDelay,
-              nColorMain, nColorSettings, nColorHelp)
+ApplySettingsFull()
 {
     global holdKey, spamKey, holdDuration
     global holdKey2, spamKey2, holdDuration2
@@ -949,31 +1041,65 @@ ApplySettings(nHold, nSpam, nHoldDur, nHold2, nSpam2, nHoldDur2,
     global speedKey, speedKey2, restartKey, soundVolume, showHelpOnStart
     global wiggleHoldKey, wiggleKeyA, wiggleKeyB, wiggleHoldA, wiggleHoldB, wiggleDelay
     global colorMain, colorSettings, colorHelp
+    global seqHoldKey, seqLoopCount, seqLoopDelay, seqStepCount, seqKeys, seqHolds, seqDelays
+    global recorInterval, recorStepCount, recorKeys, recorHolds, recorDelays
+    global sHoldEdit, sSpamEdit, sHoldDurEdit
+    global sHoldEdit2, sSpamEdit2, sHoldDurEdit2
+    global sPresetSwitchEdit, sPreset2AddEdit
+    global sSpeed1Edit, sSpeed2Edit, sRestartEdit
+    global sVolSlider, sHelpCheck
+    global sWiggleHoldEdit, sWiggleKeyAEdit, sWiggleKeyBEdit
+    global sWiggleHoldAEdit, sWiggleHoldBEdit, sWiggleDelayEdit
+    global sColorMainEdit, sColorSettingsEdit, sColorHelpEdit
+    global sSeqHoldEdit, sSeqLoopEdit, sSeqLoopDelayEdit, sSeqStepCountEdit
+    global sSeqKeyEdits, sSeqHoldEdits, sSeqDelayEdits
+    global sRecorIntervalEdit, sRecorStepCountEdit
+    global sRecorKeyEdits, sRecorHoldEdits, sRecorDelayEdits
 
     UnregisterHotkeys()
 
-    holdKey         := Trim(nHold)
-    spamKey         := Trim(nSpam)
-    holdDuration    := Integer(nHoldDur)
-    holdKey2        := Trim(nHold2)
-    spamKey2        := Trim(nSpam2)
-    holdDuration2   := Integer(nHoldDur2)
-    presetSwitchKey := Trim(nSwitchKey)
-    preset2AddKey   := Trim(nBothKey)
-    speedKey        := Trim(nSpeed1)
-    speedKey2       := Trim(nSpeed2)
-    restartKey      := Trim(nRestartKey)
-    soundVolume     := Integer(nVolume)
-    showHelpOnStart := (nHelpOnStart = 1)
-    wiggleHoldKey   := Trim(nWiggleHold)
-    wiggleKeyA      := Trim(nWigKeyA)
-    wiggleKeyB      := Trim(nWigKeyB)
-    wiggleHoldA     := Integer(nWigHoldA)
-    wiggleHoldB     := Integer(nWigHoldB)
-    wiggleDelay     := Integer(nWigDelay)
-    colorMain       := Trim(nColorMain)
-    colorSettings   := Trim(nColorSettings)
-    colorHelp       := Trim(nColorHelp)
+    holdKey         := Trim(sHoldEdit.Value)
+    spamKey         := Trim(sSpamEdit.Value)
+    holdDuration    := Integer(sHoldDurEdit.Value)
+    holdKey2        := Trim(sHoldEdit2.Value)
+    spamKey2        := Trim(sSpamEdit2.Value)
+    holdDuration2   := Integer(sHoldDurEdit2.Value)
+    presetSwitchKey := Trim(sPresetSwitchEdit.Value)
+    preset2AddKey   := Trim(sPreset2AddEdit.Value)
+    speedKey        := Trim(sSpeed1Edit.Value)
+    speedKey2       := Trim(sSpeed2Edit.Value)
+    restartKey      := Trim(sRestartEdit.Value)
+    soundVolume     := Integer(sVolSlider.Value)
+    showHelpOnStart := (sHelpCheck.Value = 1)
+    wiggleHoldKey   := Trim(sWiggleHoldEdit.Value)
+    wiggleKeyA      := Trim(sWiggleKeyAEdit.Value)
+    wiggleKeyB      := Trim(sWiggleKeyBEdit.Value)
+    wiggleHoldA     := Integer(sWiggleHoldAEdit.Value)
+    wiggleHoldB     := Integer(sWiggleHoldBEdit.Value)
+    wiggleDelay     := Integer(sWiggleDelayEdit.Value)
+    colorMain       := Trim(sColorMainEdit.Value)
+    colorSettings   := Trim(sColorSettingsEdit.Value)
+    colorHelp       := Trim(sColorHelpEdit.Value)
+    seqHoldKey      := Trim(sSeqHoldEdit.Value)
+    seqLoopCount    := Integer(sSeqLoopEdit.Value)
+    seqLoopDelay    := Integer(sSeqLoopDelayEdit.Value)
+    seqStepCount    := Integer(sSeqStepCountEdit.Value)
+    Loop 8
+    {
+        i := A_Index
+        seqKeys[i]   := Trim(sSeqKeyEdits[i].Value)
+        seqHolds[i]  := Integer(sSeqHoldEdits[i].Value)
+        seqDelays[i] := Integer(sSeqDelayEdits[i].Value)
+    }
+    recorInterval  := Integer(sRecorIntervalEdit.Value)
+    recorStepCount := Integer(sRecorStepCountEdit.Value)
+    Loop 4
+    {
+        i := A_Index
+        recorKeys[i]   := Trim(sRecorKeyEdits[i].Value)
+        recorHolds[i]  := Integer(sRecorHoldEdits[i].Value)
+        recorDelays[i] := Integer(sRecorDelayEdits[i].Value)
+    }
 
     SaveSettings()
     ShowMessage("⚠ Reloading with new settings... ⚠")
@@ -993,6 +1119,8 @@ DoRestart(*)
     global speedKey, speedKey2, restartKey, soundVolume, showHelpOnStart
     global wiggleHoldKey, wiggleKeyA, wiggleKeyB, wiggleHoldA, wiggleHoldB, wiggleDelay
     global colorMain, colorSettings, colorHelp
+    global seqHoldKey, seqLoopCount, seqLoopDelay, seqStepCount, seqKeys, seqHolds, seqDelays
+    global recorInterval, recorStepCount, recorKeys, recorHolds, recorDelays
     global sHoldEdit, sSpamEdit, sHoldDurEdit
     global sHoldEdit2, sSpamEdit2, sHoldDurEdit2
     global sPresetSwitchEdit, sPreset2AddEdit
@@ -1001,6 +1129,10 @@ DoRestart(*)
     global sWiggleHoldEdit, sWiggleKeyAEdit, sWiggleKeyBEdit
     global sWiggleHoldAEdit, sWiggleHoldBEdit, sWiggleDelayEdit
     global sColorMainEdit, sColorSettingsEdit, sColorHelpEdit
+    global sSeqHoldEdit, sSeqLoopEdit, sSeqLoopDelayEdit, sSeqStepCountEdit
+    global sSeqKeyEdits, sSeqHoldEdits, sSeqDelayEdits
+    global sRecorIntervalEdit, sRecorStepCountEdit
+    global sRecorKeyEdits, sRecorHoldEdits, sRecorDelayEdits
 
     try
     {
@@ -1026,6 +1158,26 @@ DoRestart(*)
         colorMain       := Trim(sColorMainEdit.Value)
         colorSettings   := Trim(sColorSettingsEdit.Value)
         colorHelp       := Trim(sColorHelpEdit.Value)
+        seqHoldKey      := Trim(sSeqHoldEdit.Value)
+        seqLoopCount    := Integer(sSeqLoopEdit.Value)
+        seqLoopDelay    := Integer(sSeqLoopDelayEdit.Value)
+        seqStepCount    := Integer(sSeqStepCountEdit.Value)
+        Loop 8
+        {
+            i := A_Index
+            seqKeys[i]   := Trim(sSeqKeyEdits[i].Value)
+            seqHolds[i]  := Integer(sSeqHoldEdits[i].Value)
+            seqDelays[i] := Integer(sSeqDelayEdits[i].Value)
+        }
+        recorInterval  := Integer(sRecorIntervalEdit.Value)
+        recorStepCount := Integer(sRecorStepCountEdit.Value)
+        Loop 4
+        {
+            i := A_Index
+            recorKeys[i]   := Trim(sRecorKeyEdits[i].Value)
+            recorHolds[i]  := Integer(sRecorHoldEdits[i].Value)
+            recorDelays[i] := Integer(sRecorDelayEdits[i].Value)
+        }
     }
     catch as err
     {
@@ -1113,7 +1265,6 @@ CheckForUpdates()
 {
     global currentVersion, versionURL, scriptURL, settingsFile
 
-    ; Try to fetch the remote version number
     remoteVersion := ""
     try
     {
@@ -1124,18 +1275,15 @@ CheckForUpdates()
     }
     catch as err
     {
-        ; No internet or URL not set up yet — silently skip
         return
     }
 
-    ; Strip placeholder check — if URL still has YOURUSERNAME skip silently
     if InStr(versionURL, "YOURUSERNAME")
         return
 
     if (remoteVersion = "" || remoteVersion = currentVersion)
         return
 
-    ; New version found — ask user
     response := MsgBox(
         "♡ A new version of Lazy Garden Macro is available! ♡`n`n"
         . "Your version:   " . currentVersion . "`n"
@@ -1149,11 +1297,9 @@ CheckForUpdates()
     if (response != "Yes")
         return
 
-    ; Save current settings first so they survive the update
     SaveSettings()
     ShowMessage("⬇ Downloading update... ⚠")
 
-    ; Download new script to a temp file then replace
     tempScript := A_ScriptDir "\_update_new.ahk"
     try
     {
@@ -1165,7 +1311,6 @@ CheckForUpdates()
         return
     }
 
-    ; Replace current script with new one
     currentScript := A_ScriptFullPath
     try
     {
